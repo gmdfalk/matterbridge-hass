@@ -262,6 +262,57 @@ describe('Matterbridge ' + NAME, () => {
     haPlatform.ha.hassServices = {}; // Simulate Home Assistant services
   });
 
+  it('should keep metrics disabled for missing or false configuration', () => {
+    for (const enabled of [undefined, false]) {
+      haPlatform.config.metrics_enabled = enabled;
+      expect(haPlatform.getConnectionHealth()).toBeUndefined();
+      expect(haPlatform.ha.diagnosticsEnabled).toBe(false);
+    }
+  });
+
+  it('should expose current HA connection health without assuming a stale subscription is active', async () => {
+    haPlatform.config.metrics_enabled = true;
+    haPlatform.ha.connected = true;
+    const fetch = vi.spyOn(haPlatform.ha, 'fetchData').mockResolvedValue();
+    const subscribe = vi.spyOn(haPlatform.ha, 'subscribe').mockResolvedValue(42);
+    haPlatform.ha.emit('connected', '2026.10');
+    await flushAsync();
+    expect(haPlatform.getConnectionHealth()).toMatchObject({ connected: true, subscribed: true, lastHeartbeatTimestampSeconds: 0 });
+    haPlatform.ha.connected = false;
+    expect(haPlatform.getConnectionHealth()).toMatchObject({ connected: false, subscribed: false });
+    haPlatform.ha.connected = true;
+    haPlatform.haSubscriptionId = null;
+    expect(haPlatform.getConnectionHealth()?.subscribed).toBe(false);
+    let acknowledge: (id: number) => void = () => {};
+    subscribe.mockImplementation(
+      async () =>
+        new Promise<number>((resolve) => {
+          acknowledge = resolve;
+        }),
+    );
+    haPlatform.ha.emit('connected', '2026.10');
+    await flushAsync();
+    haPlatform.ha.emit('disconnected', 'fixture');
+    acknowledge(99);
+    await flushAsync();
+    haPlatform.ha.connected = true;
+    expect(haPlatform.getConnectionHealth()?.subscribed).toBe(false);
+    fetch.mockRestore();
+    subscribe.mockRestore();
+    haPlatform.config.metrics_enabled = false;
+    haPlatform.haSubscriptionId = 1;
+  });
+
+  it('should opt in to heartbeat diagnostics without breaking control on older cores', async () => {
+    for (const supported of [false, true]) {
+      const platform = new HomeAssistantPlatform({ ...mockMatterbridge, supportsNativeMetrics: supported }, log, { ...mockConfig, metrics_enabled: true });
+      await platform.ready;
+      expect(platform.ha.diagnosticsEnabled).toBe(true);
+      expect(platform.getConnectionHealth()).toMatchObject({ connected: false, subscribed: false });
+      await platform.onShutdown('Metrics test cleanup');
+    }
+  });
+
   it('should call onStart and not register an individual entity if the domain is blacklisted', async () => {
     // await setDebug(true);
     const entity = generateEntity(haPlatform.ha, 'Test Entity Scene', 'scene', null, null, [], 'unknown');

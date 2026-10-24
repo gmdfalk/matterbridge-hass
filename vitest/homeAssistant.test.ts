@@ -879,8 +879,45 @@ describe('HomeAssistant', () => {
     }
   });
 
-  it('should send ping to Home Assistant', async () => {
+  it('should record only a matching application pong when native diagnostics are enabled', async () => {
+    const client = new HomeAssistant(wsUrl, accessToken, 0, 0);
+    const receive = (id: number): void => {
+      (client as any).onMessage(Buffer.from(JSON.stringify({ type: 'pong', id })), false);
+    };
+    client.connected = true;
+    (client as any).diagnosticPingId = 7;
+    receive(7);
+    expect(client.lastApplicationPongTimestampSeconds).toBe(0);
+    client.diagnosticsEnabled = true;
+    client.connected = false;
+    receive(7);
+    expect(client.lastApplicationPongTimestampSeconds).toBe(0);
+    client.connected = true;
+    receive(8);
+    expect(client.lastApplicationPongTimestampSeconds).toBe(0);
+    (client as any).onPong(Buffer.from('transport'));
+    expect(client.lastApplicationPongTimestampSeconds).toBe(0);
+    receive(7);
+    expect(client.lastApplicationPongTimestampSeconds).toBeGreaterThan(0);
+    await client.close();
+    expect(client.lastApplicationPongTimestampSeconds).toBe(0);
+    expect((client as any).diagnosticPingId).toBeUndefined();
+  });
+
+  it('should ignore unsolicited and malformed application pongs without a pending request', async () => {
+    const client = new HomeAssistant(wsUrl, accessToken, 0, 0);
+    client.connected = true;
+    client.diagnosticsEnabled = true;
+    for (const id of [undefined, 7, '7']) {
+      (client as any).onMessage(Buffer.from(JSON.stringify({ type: 'pong', id })), false);
+      expect(client.lastApplicationPongTimestampSeconds).toBe(0);
+    }
+    await client.close();
+  });
+
+  it.each([false, true])('should send ping to Home Assistant with diagnostics enabled: %s', async (enabled) => {
     homeAssistant = new HomeAssistant(wsUrl, accessToken, 0, 0);
+    homeAssistant.diagnosticsEnabled = enabled;
     expect((homeAssistant as any).reconnectTimeoutTime).toBe(0);
     expect((homeAssistant as any).reconnectRetries).toBe(0);
 
@@ -903,6 +940,7 @@ describe('HomeAssistant', () => {
 
     vi.advanceTimersByTime((homeAssistant as any).pingIntervalTime);
 
+    expect((homeAssistant as any).diagnosticPingId).toBe(enabled ? (homeAssistant as any).requestId - 1 : undefined);
     expect(loggerLogSpy).toHaveBeenCalledWith(LogLevel.DEBUG, 'Sending WebSocket ping...');
     expect(loggerLogSpy).toHaveBeenCalledWith(LogLevel.DEBUG, expect.stringContaining(`Sending Home Assistant ping id`));
     expect((homeAssistant as any).pingTimeout).not.toBeUndefined();

@@ -387,6 +387,11 @@ So, if your `Samsung TV` only supports `TURN_ON`, `TURN_OFF` and `VOLUME_STEP`, 
 
 Should be enabled only if you want to debug some issue using the log.
 
+## Prometheus metrics
+
+An opt-in native metrics preview is described in [the metrics guide](docs/prometheus.md).
+It requires the companion core implementation and is disabled by default.
+
 ## Style guide
 
 See also the [Style Guide](./STYLEGUIDE.md) for JSDoc, naming, and logging conventions used in this repository.

@@ -26,5 +26,8 @@
   "discardHiddenEntities": true,
   "virtualControlLabel": "",
   "debug": false,
-  "unregisterOnShutdown": false
+  "unregisterOnShutdown": false,
+  "metrics_enabled": false,
+  "metrics_bind": "127.0.0.1",
+  "metrics_port": 9490
 }
