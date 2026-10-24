@@ -3,7 +3,7 @@
  * @description This file contains the class HomeAssistant.
  * @author Luca Liguori
  * @created 2024-09-14
- * @version 1.2.0
+ * @version 1.2.1
  * @license Apache-2.0
  *
  * Copyright 2024, 2025, 2026 Luca Liguori.
@@ -1131,6 +1131,11 @@ interface HomeAssistantEventEmitter {
 
 export class HomeAssistant extends EventEmitter {
   connected = false;
+  /** Enable read-only heartbeat diagnostics; false preserves the existing traffic and timer behavior. */
+  diagnosticsEnabled = false;
+  /** Unix seconds of the last matching application pong; zero until observed on this connection. */
+  lastApplicationPongTimestampSeconds = 0;
+  private diagnosticPingId: number | undefined;
   ws: WebSocket | null = null;
   wsUrl: string;
   wsAccessToken: string;
@@ -1265,6 +1270,10 @@ export class HomeAssistant extends EventEmitter {
     }
     // console.log(`Received WebSocket message:`, response);
     if (response.type === 'pong') {
+      if (this.diagnosticsEnabled && this.connected && response.id === this.diagnosticPingId) {
+        this.lastApplicationPongTimestampSeconds = Date.now() / 1000;
+        this.diagnosticPingId = undefined;
+      }
       this.log.debug(`Home Assistant pong received with id ${response.id}`);
       /* v8 ignore next */
       if (this.pingTimeout) {
@@ -1337,6 +1346,8 @@ export class HomeAssistant extends EventEmitter {
     const closeMessage = `WebSocket connection closed. Code: ${code} Reason: ${reason.toString()}`;
     this.log.debug(closeMessage);
     this.connected = false;
+    this.lastApplicationPongTimestampSeconds = 0;
+    this.diagnosticPingId = undefined;
     this.stopPing();
     this.emit('socket_closed', code, reason);
     this.emit('disconnected', `Code: ${code} Reason: ${reason.toString()}`);
@@ -1511,6 +1522,7 @@ export class HomeAssistant extends EventEmitter {
       this.log.debug(`Sending WebSocket ping...`);
       this.ws.ping();
       this.log.debug(`Sending Home Assistant ping id ${this.requestId}...`);
+      if (this.diagnosticsEnabled) this.diagnosticPingId = this.requestId;
       this.ws.send(
         JSON.stringify({
           id: this.requestId++,
@@ -1595,6 +1607,8 @@ export class HomeAssistant extends EventEmitter {
         this.ws?.removeAllListeners();
         this.ws = null;
         this.connected = false;
+        this.lastApplicationPongTimestampSeconds = 0;
+        this.diagnosticPingId = undefined;
         this.emit('disconnected', 'WebSocket connection closed');
         this.log.info('Home Assistant connection closed');
       };

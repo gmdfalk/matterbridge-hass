@@ -3,7 +3,7 @@
  * @description This file contains the class HomeAssistantPlatform.
  * @author Luca Liguori
  * @created 2024-09-13
- * @version 1.8.0
+ * @version 1.8.1
  * @license Apache-2.0
  *
  * Copyright 2024, 2025, 2026 Luca Liguori.
@@ -81,6 +81,12 @@ import { addSensorEntity } from './sensor.entity.js';
 import { StateCache } from './stateCache.js';
 
 export interface HomeAssistantPlatformConfig extends PlatformConfig {
+  /** Enable core-owned native metrics. Missing or false preserves existing behavior. */
+  metrics_enabled?: boolean;
+  /** Metrics listener IP address; defaults to loopback. */
+  metrics_bind?: string;
+  /** Metrics listener TCP port; defaults to 9490. */
+  metrics_port?: number;
   host: string;
   certificatePath: string;
   rejectUnauthorized: boolean;
@@ -134,6 +140,9 @@ export class HomeAssistantPlatform extends MatterbridgeDynamicPlatform {
 
   /** Home Assistant subscription ID */
   haSubscriptionId: number | null = null;
+
+  private diagnosticConnectionGeneration = 0;
+  private diagnosticSubscriptionGeneration: number | undefined;
 
   /** State cache instance */
   stateCache = new StateCache();
@@ -253,8 +262,13 @@ export class HomeAssistantPlatform extends MatterbridgeDynamicPlatform {
 
     this.ha = new HomeAssistant(config.host, config.token, config.reconnectTimeout, config.reconnectRetries, config.certificatePath, config.rejectUnauthorized);
     this.ha.log.logLevel = this.log.logLevel;
+    this.ha.diagnosticsEnabled = config.metrics_enabled === true;
+    if (this.ha.diagnosticsEnabled && !this.matterbridge.supportsNativeMetrics) {
+      this.log.warn('Native metrics require the companion Matterbridge core implementation; Home Assistant control continues without metrics');
+    }
 
     this.ha.on('connected', (ha_version: HomeAssistantPrimitive) => {
+      const diagnosticGeneration = this.config.metrics_enabled === true ? ++this.diagnosticConnectionGeneration : undefined;
       // oxlint-disable-next-line typescript/no-base-to-string typescript/restrict-template-expressions
       this.log.notice(`Connected to Home Assistant ${ha_version}`);
 
@@ -273,6 +287,9 @@ export class HomeAssistantPlatform extends MatterbridgeDynamicPlatform {
             // oxlint-disable-next-line promise/always-return
             .then((id) => {
               this.haSubscriptionId = id;
+              if (diagnosticGeneration !== undefined && diagnosticGeneration === this.diagnosticConnectionGeneration && this.ha.connected) {
+                this.diagnosticSubscriptionGeneration = diagnosticGeneration;
+              }
               this.log.info(`Subscribed to Home Assistant events successfully with id ${this.haSubscriptionId}`);
             })
             .catch((error: unknown) => {
@@ -288,6 +305,10 @@ export class HomeAssistantPlatform extends MatterbridgeDynamicPlatform {
     });
 
     this.ha.on('disconnected', () => {
+      if (this.config.metrics_enabled === true) {
+        this.diagnosticConnectionGeneration++;
+        this.diagnosticSubscriptionGeneration = undefined;
+      }
       this.log.warn('Disconnected from Home Assistant');
       this.haSubscriptionId = null;
       /* v8 ignore next */
@@ -367,6 +388,19 @@ export class HomeAssistantPlatform extends MatterbridgeDynamicPlatform {
     });
 
     this.log.info(`Initialized platform: ${CYAN}${this.config.name}${nf} version: ${CYAN}${this.config.version}${rs}`);
+  }
+
+  /**
+   * Read current HA connection health without sending requests or changing state
+   * @returns {import('matterbridge').PlatformConnectionHealth | undefined} Current connection health when metrics are enabled; otherwise undefined.
+   */
+  override getConnectionHealth(): import('matterbridge').PlatformConnectionHealth | undefined {
+    if (this.config.metrics_enabled !== true) return undefined;
+    return {
+      connected: this.ha.connected,
+      subscribed: this.ha.connected && this.haSubscriptionId !== null && this.diagnosticSubscriptionGeneration === this.diagnosticConnectionGeneration,
+      lastHeartbeatTimestampSeconds: this.ha.lastApplicationPongTimestampSeconds,
+    };
   }
 
   override async onStart(reason?: string): Promise<void> {

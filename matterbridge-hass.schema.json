@@ -241,6 +241,26 @@
       "type": "boolean",
       "default": false,
       "ui:widget": "hidden"
+    },
+    "metrics_enabled": {
+      "title": "Enable Prometheus Metrics",
+      "description": "Opt in to native metrics with the companion Matterbridge core. Disabled by default; restart Matterbridge after changing.",
+      "type": "boolean",
+      "default": false
+    },
+    "metrics_bind": {
+      "title": "Metrics Bind Address",
+      "description": "Metrics listener IP address. Loopback by default; use an explicit private address for remote scraping.",
+      "type": "string",
+      "default": "127.0.0.1"
+    },
+    "metrics_port": {
+      "title": "Metrics Port",
+      "description": "Dedicated TCP metrics port. Use a different free port for each Matterbridge process.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535,
+      "default": 9490
     }
   }
 }
