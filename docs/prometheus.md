@@ -68,8 +68,10 @@ A paired controller with zero subscriptions is different from a removed fabric.
 A controller can rotate sessions; inspect the aggregate rather than requiring every
 session to subscribe. Keep expected nodes/controllers outside discovery so removed
 series cannot silently remove an alert. Fabric aliases use the local fabric index;
-re-pairing can change them. Node aliases distinguish root, plugin and standalone
-nodes; review expectations if node ownership/order changes.
+re-pairing can change them. The root uses `root`; childbridges use their plugin
+package name. Standalone aliases hash the node identity with the private instance
+UUID. These aliases survive discovery reordering and ordinary restarts without
+exposing raw node IDs. Resetting the instance identity changes standalone aliases.
 
 HA connection diagnostics do not require new network probes. They observe the
 existing connection and its application pings. A transport pong alone does not

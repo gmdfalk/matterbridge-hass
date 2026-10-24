@@ -4,7 +4,7 @@
  * @author Max Falk
  */
 import { execFile } from 'node:child_process';
-import { cp, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -44,12 +44,14 @@ async function waitFor(check, description, timeout = 90000) {
   }
   throw new Error(`Timed out: ${description}`);
 }
-const excluded = new Set(['.git', 'node_modules', '.cache', 'dist', 'coverage', 'temp', 'tmp', 'chip', 'certificates', 'secrets', '.storage']);
+const excluded = new Set(['.git', '.npmrc', '.netrc', '.ssh', '.git-credentials', '.matterbridge', '.mattercert', 'node_modules', '.cache', 'dist', 'coverage', 'temp', 'tmp', 'chip', 'certificates', 'secrets', 'secrets.yaml', 'secrets.yml', 'secrets.json', '.storage']);
 const filter = (source) => {
   const name = path.basename(source);
   return !excluded.has(name) && !name.startsWith('.env') && !name.endsWith('.tsbuildinfo');
 };
 try {
+  assert.equal(JSON.parse(await readFile(path.join(core, 'package.json'), 'utf8')).name, 'matterbridge', 'Expected a Matterbridge core checkout');
+  assert.equal(JSON.parse(await readFile(path.join(plugin, 'package.json'), 'utf8')).name, 'matterbridge-hass', 'Run from the plugin checkout');
   await cp(core, path.join(staging, 'core'), { recursive: true, filter });
   await cp(plugin, path.join(staging, 'plugin'), { recursive: true, filter });
   console.log('Building isolated candidate core and plugin with the repository npm scripts...');

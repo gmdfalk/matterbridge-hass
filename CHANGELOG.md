@@ -34,6 +34,10 @@ If you like this project and find it useful, please consider giving it a star on
 
 - [metrics]: Add disabled-by-default native HA connection diagnostics and metrics options for the companion core endpoint, with tests and a local Docker scrape fixture.
 
+### Fixed
+
+- [metrics]: Ignore unsolicited application pongs without a pending diagnostic request.
+
 ## [1.6.0] - 2026-10-23
 
 ### Breaking changes

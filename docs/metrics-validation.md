@@ -3,15 +3,15 @@
 Observed locally on 2026-10-24. Candidate plugin and companion core were built
 from the working branches; no production HA instance or physical controller was used.
 
-| Check | Result |
-| --- | --- |
-| Plugin `npm run build`, `npm run typecheck`, `npm run lint`, scoped `npm run format:check` | Passed on local Node 22 |
-| Plugin `npm run test:coverage` | 493 tests in 17 files passed; statements, branches, functions and lines all 100% |
-| Core `npm run build`, `npm run typecheck`, scoped lint/format | Passed |
-| Core grouped Matterbridge, Platform, PluginManager and native metrics tests | 280 tests in 12 files passed |
-| Core coverage command | Nonzero exit: pre-existing uncovered ANSI logging line; core lines 99.93% against a 100% threshold |
-| Untouched core baseline, same Matterbridge test task | Same nonzero coverage failure at baseline line 1801; 144 tests passed and core lines 99.93% |
-| `npm run test:metrics:docker -- ../matterbridge` | Passed using the candidate core and plugin in Linux containers |
+| Check                                                                                      | Result                                                                                             |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------- |
+| Plugin `npm run build`, `npm run typecheck`, `npm run lint`, scoped `npm run format:check` | Passed on local Node 22                                                                            |
+| Plugin `npm run test:coverage`                                                             | 494 tests in 17 files passed; statements, branches, functions and lines all 100%                   |
+| Core `npm run build`, `npm run typecheck`, scoped lint/format                              | Passed                                                                                             |
+| Core grouped Matterbridge, Platform, PluginManager and native metrics tests                | 281 tests in 12 files passed                                                                       |
+| Core coverage command                                                                      | Nonzero exit: pre-existing uncovered ANSI logging line; core lines 99.93% against a 100% threshold |
+| Untouched core baseline, same Matterbridge test task                                       | Same nonzero coverage failure at baseline line 1801; 144 tests passed and core lines 99.93%        |
+| `npm run test:metrics:docker -- ../matterbridge`                                           | Passed using the candidate core and plugin in Linux containers                                     |
 
 The Docker test verified actual Prometheus `up=1`, plugin readiness, an acknowledged
 HA event subscription, a matching application heartbeat, valid `promtool` exposition,
@@ -22,6 +22,13 @@ credentials, created one software helper, and cleaned up its containers/network.
 The core baseline was exported from its untouched HEAD into a temporary directory;
 no production code or coverage threshold was changed to bypass the failure. Both
 baseline and candidate also emitted existing process signal-listener warnings.
+
+The final local review added regressions for unsolicited/malformed application
+pongs, stable node aliases after discovery reordering, concurrent failed startup
+and repeated listener errors after startup. The pong and listener regressions
+failed before their fixes. The listener test also verifies that its port can be
+reused after failure. The smoke runner checks checkout identities before copying
+sources and excludes common credential files from its temporary build context.
 
 The existing nine-way OS/Node CI matrix has not been validated by these local runs.
 The plugin's new typed diagnostics API depends on the companion core change; the

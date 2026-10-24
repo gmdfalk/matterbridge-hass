@@ -904,6 +904,17 @@ describe('HomeAssistant', () => {
     expect((client as any).diagnosticPingId).toBeUndefined();
   });
 
+  it('should ignore unsolicited and malformed application pongs without a pending request', async () => {
+    const client = new HomeAssistant(wsUrl, accessToken, 0, 0);
+    client.connected = true;
+    client.diagnosticsEnabled = true;
+    for (const id of [undefined, 7, '7']) {
+      (client as any).onMessage(Buffer.from(JSON.stringify({ type: 'pong', id })), false);
+      expect(client.lastApplicationPongTimestampSeconds).toBe(0);
+    }
+    await client.close();
+  });
+
   it.each([false, true])('should send ping to Home Assistant with diagnostics enabled: %s', async (enabled) => {
     homeAssistant = new HomeAssistant(wsUrl, accessToken, 0, 0);
     homeAssistant.diagnosticsEnabled = enabled;

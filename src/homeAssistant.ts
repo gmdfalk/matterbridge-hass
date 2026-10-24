@@ -1270,7 +1270,7 @@ export class HomeAssistant extends EventEmitter {
     }
     // console.log(`Received WebSocket message:`, response);
     if (response.type === 'pong') {
-      if (this.diagnosticsEnabled && this.connected && response.id === this.diagnosticPingId) {
+      if (this.diagnosticsEnabled && this.connected && this.diagnosticPingId !== undefined && response.id === this.diagnosticPingId) {
         this.lastApplicationPongTimestampSeconds = Date.now() / 1000;
         this.diagnosticPingId = undefined;
       }
